@@ -41,12 +41,29 @@ resource "kubiya_agent" "openshift_teammate" {
   depends_on = [kubiya_secret.openshift_password, kubiya_source.openshift_source]
 }
 
+resource "kubiya_webhook" "jira_webhook" {
+  filter = ""
+  
+  name        = "${kubiya_agent.openshift_teammate.name}-jira-webhook"
+  source      = "K8S"
+  prompt      = <<-EOT
+   Title: {{event.issue.summary}}
+   Body: {{event.issue.description}}
+    EOT
+  agent       = "${kubiya_agent.openshift_teammate.name}"
+  destination = "social"
+  depends_on = [
+    kubiya_agent.openshift_teammate
+  ]
+}
+
 # Output the teammate jenkins_proxy 
 output "openshift_cli_teammte" {
   value = {
     name         = kubiya_agent.openshift_teammate.name
     runner       = var.kubiya_runner
     integrations = kubiya_agent.openshift_teammate.integrations
+    webhook      = kubiya_webhook.jira_webhook.name
   }
   description = "Details about the deployed OpenShift CLI teammate"
 } 
