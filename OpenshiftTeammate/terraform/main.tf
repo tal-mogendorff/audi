@@ -45,7 +45,7 @@ resource "kubiya_webhook" "jira_webhook" {
   filter = ""
   
   name        = "${kubiya_agent.openshift_teammate.name}-jira-webhook"
-  source      = "K8S"
+  source      = "Jira"
   prompt      = <<-EOT
    Title: {{event.issue.summary}}
    Body: {{event.issue.description}}
