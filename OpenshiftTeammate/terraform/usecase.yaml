@@ -1,0 +1,6 @@
+name: "OpenShift CLI"
+icons:
+  - "https://dwglogo.com/wp-content/uploads/2017/11/2200px_OpenShift_logo.png"
+# Description is fetched automatically from the repository's README.md file if it exists
+# and will be displayed in the Kubiya Web App at https://app.kubiya.ai under "teammates" -> "tasks" section
+description: ""
