@@ -25,7 +25,7 @@ resource "kubiya_source" "openshift_source" {
 
 # Create the Jenkins proxy assistant
 resource "kubiya_agent" "openshift_teammate" {
-  name         = "OpenShift Expert"
+  name         = "OpenShift-Expert"
   runner       = var.kubiya_runner
   description  = "I am an OpenShift expert. I can help you with OpenShift operations, such as creating projects, deploying applications, and managing resources."
   instructions = ""
