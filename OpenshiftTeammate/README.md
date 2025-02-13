@@ -12,6 +12,7 @@ Transform your OpenShift cluster operations with an AI-powered conversational in
 - ⏱️ **Operation Control**: Handle long-running operations with proper status tracking
 - 🎛️ **Flexible Configuration**: Support for various OpenShift resources and operations
 - 👥 **Access Control**: Role-based access through Kubiya groups
+- 🔄 **JIRA Integration**: Automated processing of JIRA issues and events
 
 ## 🏗 Architecture
 
@@ -23,11 +24,14 @@ graph TB
     O --> |Resource Status| K
     O --> |Operation Logs| K
     K --> |Real-time Updates| U
+    J[JIRA] -->|Webhook| K
+    K -->|Issue Updates| J
 
     style U fill:#4aa1ff,stroke:#333,stroke-width:2px
     style K fill:#3ebd64,stroke:#333,stroke-width:2px
     style O fill:#ee0000,stroke:#333,stroke-width:2px
     style S fill:#ff9800,stroke:#333,stroke-width:2px
+    style J fill:#0052cc,stroke:#333,stroke-width:2px
 ```
 
 ## 📋 Requirements
@@ -36,6 +40,8 @@ graph TB
 - OpenShift user credentials with appropriate permissions
 - Kubiya platform access
 - `KUBIYA_API_KEY` environment variable set
+- JIRA instance with webhook configuration
+- Proper JIRA permissions and access setup
 
 ## 🚀 Quick Start
 
@@ -56,6 +62,19 @@ module "openshift_proxy" {
   name = "openshift-expert"
   integrations = ["slack"]
   allowed_groups = ["Admins", "Users"]
+}
+
+# Configure Webhook for JIRA Events
+resource "kubiya_webhook" "jira_webhook" {
+  filter = ""
+  name   = "${module.openshift_proxy.name}-jira-webhook"
+  source = "JIRA"
+  prompt = <<-EOT
+    Title: {{event.issue.summary}}
+    Body: {{event.issue.description}}
+  EOT
+  agent       = module.openshift_proxy.name
+  destination = "social"
 }
 ```
 
@@ -109,6 +128,14 @@ Assistant: "Here are your OpenShift projects:
 | `integrations` | Available integrations | `list(string)` | `["slack"]` |
 | `groups` | Allowed groups | `list(string)` | `["Admins", "Users"]` |
 
+### Webhook Configuration
+
+| Name | Description | Type | Default |
+|------|-------------|------|---------|
+| `filter` | JIRA event filter pattern | `string` | `""` |
+| `source` | Event source type | `string` | `"JIRA"` |
+| `destination` | Webhook destination | `string` | `"social"` |
+
 ## 🔒 Security Features
 
 1. **Credential Management**:
@@ -125,6 +152,11 @@ Assistant: "Here are your OpenShift projects:
    - Resource quotas and limits
    - Namespace isolation
    - Controlled access to cluster resources
+
+4. **Webhook Security**:
+   - JIRA event filtering
+   - Secure webhook endpoints
+   - Authenticated event processing
 
 ## 🔍 Troubleshooting
 
@@ -148,11 +180,18 @@ Common issues and solutions:
    Solution: Verify user roles and permissions in OpenShift
    ```
 
+4. **Webhook Issues**:
+   ```
+   Error: JIRA webhook event processing failed
+   Solution: Verify JIRA webhook configuration and event payload format
+   ```
+
 ## 📚 Additional Resources
 
 - [OpenShift Documentation](https://docs.openshift.com)
 - [Kubiya Documentation](https://docs.kubiya.ai)
 - [Security Best Practices](https://docs.kubiya.ai/security)
+- [JIRA Integration Guide](https://docs.kubiya.ai/jira-integration)
 
 ## 🤝 Contributing
 
