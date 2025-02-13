@@ -35,7 +35,7 @@ resource "kubiya_agent" "openshift_teammate" {
   }
   sources = [kubiya_source.openshift_source.name]
   secrets = ["OPENSHIFT_PASSWORD"]
-  groups  = ["Admins", "Users"]
+  groups  = ["Admin", "Users"]
   integrations = ["slack"]
 
   depends_on = [kubiya_secret.openshift_password, kubiya_source.openshift_source]
@@ -47,11 +47,11 @@ resource "kubiya_webhook" "jira_webhook" {
   name        = "${kubiya_agent.openshift_teammate.name}-jira-webhook"
   source      = "Jira"
   prompt      = <<-EOT
-   Title: {{event.issue.summary}}
-   Body: {{event.issue.description}}
+   Follow the instructions. Title: {{event.issue.summary}}
+   Descriptions: {{event.issue.description}}
     EOT
   agent       = "${kubiya_agent.openshift_teammate.name}"
-  destination = "social"
+  destination = "#social"
   depends_on = [
     kubiya_agent.openshift_teammate
   ]

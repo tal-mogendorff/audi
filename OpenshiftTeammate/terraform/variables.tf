@@ -12,9 +12,7 @@ variable "openshift_url" {
 variable "openshift_username" {
   description = "👤 OpenShift username for Cluster access"
   type        = string
-  default     = ""
 }
-
 
 variable "openshift_password" {
   description = "🔑 OpenShift password for authentication (sensitive)"
