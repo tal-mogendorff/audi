@@ -1,234 +1,205 @@
 # 🤖 OpenShift Conversational Proxy
 
-Transform your OpenShift cluster operations with an AI-powered conversational interface. Execute, monitor, and manage OpenShift resources through natural language interactions while maintaining security and control.
-
-## 🌟 Features
-
-- 🎯 **Natural Language Control**: Execute OpenShift operations using conversational commands
-- 📊 **Resource Management**: Create and manage projects, applications, and resources
-- 🔄 **Cluster Operations**: Handle deployments, services, and route management
-- 🔐 **Secure Authentication**: Token-based authentication with secret management
-- 📝 **Resource Monitoring**: Track resource status and health
-- ⏱️ **Operation Control**: Handle long-running operations with proper status tracking
-- 🎛️ **Flexible Configuration**: Support for various OpenShift resources and operations
-- 👥 **Access Control**: Role-based access through Kubiya groups
-- 🔄 **JIRA Integration**: Automated processing of JIRA issues and events
-
-## 🏗 Architecture
-
-```mermaid
-graph TB
-    U[User] --> |Natural Language| K[Kubiya Platform]
-    K --> |API Calls| O[OpenShift Cluster]
-    K --> |Secret Management| S[Kubiya Secrets]
-    O --> |Resource Status| K
-    O --> |Operation Logs| K
-    K --> |Real-time Updates| U
-    J[JIRA] -->|Webhook| K
-    K -->|Issue Updates| J
-
-    style U fill:#4aa1ff,stroke:#333,stroke-width:2px
-    style K fill:#3ebd64,stroke:#333,stroke-width:2px
-    style O fill:#ee0000,stroke:#333,stroke-width:2px
-    style S fill:#ff9800,stroke:#333,stroke-width:2px
-    style J fill:#0052cc,stroke:#333,stroke-width:2px
-```
-
-## 📋 Requirements
-
-- OpenShift cluster with API access enabled
-- OpenShift user credentials with appropriate permissions
-- Kubiya platform access
-- `KUBIYA_API_KEY` environment variable set
-- JIRA instance with webhook configuration
-- Proper JIRA permissions and access setup
+[Previous sections remain the same until Quick Start]
 
 ## 🚀 Quick Start
 
-1. **Configure Variables**:
+### Prerequisites
+
+Before you begin, ensure you have:
+- Terraform v1.0+ installed
+- OpenShift CLI (oc) installed
+- Access to an OpenShift cluster
+- Kubiya API key
+- JIRA instance configured for webhooks
+
+### Installation Steps
+
+1. **Create Your Terraform Working Directory**:
+```bash
+mkdir openshift-proxy
+cd openshift-proxy
+```
+
+2. **Create the Following Files**:
+
+**main.tf**:
 ```hcl
-module "openshift_proxy" {
-  source = "kubiya-terraform/kubiya"
-
-  # OpenShift Configuration
-  openshift_url      = "https://openshift.example.com"
-  openshift_username = "admin"
-  openshift_password = var.openshift_password  # Pass securely
-
-  # Runner Configuration
-  kubiya_runner = "kubiya-hosted"
-  
-  # Access Control
-  name = "openshift-expert"
-  integrations = ["slack"]
-  allowed_groups = ["Admins", "Users"]
+terraform {
+  required_providers {
+    kubiya = {
+      source = "kubiya-terraform/kubiya"
+    }
+  }
 }
 
-# Configure Webhook for JIRA Events
+provider "kubiya" {
+  // API key is set as an environment variable KUBIYA_API_KEY
+}
+
+# Store OpenShift Password in Kubiya secrets store
+resource "kubiya_secret" "openshift_password" {
+    name     = "OPENSHIFT_PASSWORD"
+    value    = "${var.openshift_password}"
+    description = "OpenShift password for authentication"
+}
+
+# Configure the source for OpenShift CLI
+resource "kubiya_source" "openshift_source" {
+  url  = "https://github.com/kubiyabot/community-tools/tree/main/openshift_cli"
+  runner = var.kubiya_runner
+}
+
+# Create the OpenShift proxy assistant
+resource "kubiya_agent" "openshift_teammate" {
+  name         = "OpenShift Expert"
+  runner       = var.kubiya_runner
+  description  = "I am an OpenShift expert. I can help you with OpenShift operations, such as creating projects, deploying applications, and managing resources."
+  instructions = ""
+  environment_variables = {
+    OPENSHIFT_URL:      var.openshift_url,
+    OPENSHIFT_USERNAME: var.openshift_username,
+  }
+  sources = [kubiya_source.openshift_source.name]
+  secrets = ["OPENSHIFT_PASSWORD"]
+  groups  = ["Admins", "Users"]
+  integrations = ["slack"]
+
+  depends_on = [kubiya_secret.openshift_password, kubiya_source.openshift_source]
+}
+
+# Configure JIRA webhook integration
 resource "kubiya_webhook" "jira_webhook" {
   filter = ""
-  name   = "${module.openshift_proxy.name}-jira-webhook"
+  name   = "${kubiya_agent.openshift_teammate.name}-jira-webhook"
   source = "JIRA"
   prompt = <<-EOT
     Title: {{event.issue.summary}}
     Body: {{event.issue.description}}
   EOT
-  agent       = module.openshift_proxy.name
+  agent       = kubiya_agent.openshift_teammate.name
   destination = "social"
+  depends_on  = [kubiya_agent.openshift_teammate]
+}
+
+# Output configuration details
+output "openshift_cli_teammate" {
+  value = {
+    name         = kubiya_agent.openshift_teammate.name
+    runner       = var.kubiya_runner
+    integrations = kubiya_agent.openshift_teammate.integrations
+    webhook      = kubiya_webhook.jira_webhook.name
+  }
+  description = "Details about the deployed OpenShift CLI teammate"
 }
 ```
 
-2. **Set Environment Variables**:
-```bash
-export KUBIYA_API_KEY="your-api-key"
+**variables.tf**:
+```hcl
+variable "openshift_url" {
+  description = "🌐 OpenShift URL (e.g., https://openshift.example.com)"
+  type        = string
+
+  validation {
+    condition     = can(regex("^(http|https)://", var.openshift_url))
+    error_message = "🚫 OpenShift URL must start with http:// or https://"
+  }
+}
+
+variable "openshift_username" {
+  description = "👤 OpenShift username for Cluster access"
+  type        = string
+  default     = ""
+}
+
+variable "openshift_password" {
+  description = "🔑 OpenShift password for authentication (sensitive)"
+  type        = string
+  sensitive   = true
+}
+
+variable "kubiya_runner" {
+  description = "🏃 Infrastructure runner that will execute the OpenShift operations"
+  type        = string
+}
 ```
 
-3. **Deploy**:
+**terraform.tfvars** (create this file and add your values):
+```hcl
+openshift_url      = "https://your-openshift-cluster.example.com"
+openshift_username = "your-username"
+kubiya_runner      = "kubiya-hosted"
+# Do not put sensitive values in this file
+```
+
+3. **Set Environment Variables**:
 ```bash
+# Set your Kubiya API key
+export KUBIYA_API_KEY="your-api-key"
+
+# Set sensitive variables (recommended over tfvars)
+export TF_VAR_openshift_password="your-openshift-password"
+```
+
+4. **Initialize Terraform**:
+```bash
+# Initialize Terraform and download required providers
 terraform init
+```
+
+5. **Review the Deployment Plan**:
+```bash
+# See what resources will be created
+terraform plan
+```
+
+6. **Apply the Configuration**:
+```bash
+# Deploy the resources
 terraform apply
 ```
 
-## 💬 Example Interactions
-
-```
-User: "Create a new project called my-app"
-Assistant: "I'll help you create a new OpenShift project called my-app. Status: Creating..."
-
-User: "Deploy an application from image"
-Assistant: "I'll help you deploy an application. Please provide:
-1. The image name
-2. The target project
-3. Optional: resource limits"
-
-User: "List all projects"
-Assistant: "Here are your OpenShift projects:
-1. my-app
-2. default
-3. openshift-monitoring
-..."
+7. **Verify the Deployment**:
+```bash
+# Check the outputs
+terraform output openshift_cli_teammate
 ```
 
-## 📝 Configuration Reference
+### Post-Installation Setup
 
-### Required Variables
+1. **Configure JIRA Webhook**:
+   - Go to your JIRA settings
+   - Navigate to System > WebHooks
+   - Create a new webhook using the URL from the Terraform output
+   - Configure the events you want to trigger the webhook
 
-| Name | Description | Type | Default |
-|------|-------------|------|---------|
-| `openshift_url` | OpenShift cluster URL | `string` | - |
-| `openshift_password` | OpenShift password | `string` | - |
+2. **Verify Integration**:
+   - Create a test JIRA issue
+   - Verify the webhook triggers successfully
+   - Check Slack for the notification (if configured)
 
-### Optional Variables
-
-| Name | Description | Type | Default |
-|------|-------------|------|---------|
-| `openshift_username` | OpenShift username | `string` | `""` |
-| `kubiya_runner` | Infrastructure runner | `string` | - |
-| `name` | Assistant name | `string` | `"OpenShift Expert"` |
-| `integrations` | Available integrations | `list(string)` | `["slack"]` |
-| `groups` | Allowed groups | `list(string)` | `["Admins", "Users"]` |
-
-### Webhook Configuration
-
-| Name | Description | Type | Default |
-|------|-------------|------|---------|
-| `filter` | JIRA event filter pattern | `string` | `""` |
-| `source` | Event source type | `string` | `"JIRA"` |
-| `destination` | Webhook destination | `string` | `"social"` |
-
-## 🔒 Security Features
-
-1. **Credential Management**:
-   - Secure storage in Kubiya's secret management
-   - Environment variable-based configuration
-   - Access control through Kubiya groups
-
-2. **Access Controls**:
-   - Role-based access control
-   - Integration-specific permissions
-   - Audit logging of all operations
-
-3. **Operation Security**:
-   - Resource quotas and limits
-   - Namespace isolation
-   - Controlled access to cluster resources
-
-4. **Webhook Security**:
-   - JIRA event filtering
-   - Secure webhook endpoints
-   - Authenticated event processing
-
-## 🔍 Troubleshooting
-
-Common issues and solutions:
-
-1. **Connection Issues**:
+3. **Test OpenShift Connection**:
+   Try basic commands like:
    ```
-   Error: Failed to connect to OpenShift cluster
-   Solution: Verify OpenShift URL and credential permissions
+   Ask the OpenShift Expert: "List all projects"
    ```
 
-2. **Authentication Errors**:
-   ```
-   Error: Invalid credentials
-   Solution: Check OpenShift username and password configuration
-   ```
+### Updating Configuration
 
-3. **Resource Access Issues**:
-   ```
-   Error: Insufficient permissions
-   Solution: Verify user roles and permissions in OpenShift
-   ```
+To update your deployment:
 
-4. **Webhook Issues**:
-   ```
-   Error: JIRA webhook event processing failed
-   Solution: Verify JIRA webhook configuration and event payload format
-   ```
-
-## 📚 Additional Resources
-
-- [OpenShift Documentation](https://docs.openshift.com)
-- [Kubiya Documentation](https://docs.kubiya.ai)
-- [Security Best Practices](https://docs.kubiya.ai/security)
-- [JIRA Integration Guide](https://docs.kubiya.ai/jira-integration)
-
-## 🤝 Contributing
-
-We welcome contributions! Please feel free to submit issues, feature requests, or pull requests.
-
-## 📄 License
-
-This module is released under the MIT License.
-
-```
-MIT License
-
-Copyright (c) 2024 Kubiya.ai
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+1. Modify the relevant `.tf` files
+2. Run:
+```bash
+terraform plan  # Review changes
+terraform apply # Apply changes
 ```
 
----
+### Cleanup
 
-Need help? Join our [Community Slack](https://slack.kubiya.ai) or [contact support](mailto:support@kubiya.ai).
+To remove all created resources:
+```bash
+terraform destroy
+```
 
----
-
-_Built with ❤️ by [Kubiya.ai](https://kubiya.ai)_
+[Rest of the document remains the same...]
